@@ -1,0 +1,18 @@
+import { createExecutionContext, env, waitOnExecutionContext } from "cloudflare:test";
+import { describe, expect, it } from "vitest";
+import worker from "../src/index.ts";
+
+describe("the page", () => {
+  it("is served from assets with every control the script expects", async () => {
+    const ctx = createExecutionContext();
+    const response = await worker.fetch(new Request("https://issues.cloudils.com/"), env, ctx);
+    await waitOnExecutionContext(ctx);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    for (const id of ["repo", "type", "note", "generate", "preview", "detected-type", "title", "body", "correction", "correct", "publish", "status", "result"]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+    expect(html).toContain('<script src="/app.js" defer></script>');
+    expect(html).not.toMatch(/<script>(?!<\/script>)|style="/);
+  });
+});
