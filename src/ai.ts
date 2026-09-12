@@ -2,7 +2,7 @@ import { buildMessages, type ChatMessage, type DraftInput } from "./prompt.ts";
 import { validateFields, type IssueFields } from "./schema.ts";
 
 export interface TextModel {
-  run(model: string, input: { messages: ChatMessage[]; max_tokens: number }): Promise<unknown>;
+  run(model: string, input: { messages: ChatMessage[]; max_tokens: number; temperature: number }): Promise<unknown>;
 }
 
 export type DraftErrorKind = "invalid_output" | "quota_exhausted" | "unavailable";
@@ -19,7 +19,13 @@ export class DraftError extends Error {
   }
 }
 
-const MAX_TOKENS = 1500;
+// Room for the reasoning that precedes the JSON. Neurons are billed on tokens
+// actually produced, so a generous cap costs nothing when unused.
+const MAX_TOKENS = 3000;
+
+// Low, because the task is transcription rather than invention: at the model's
+// default the same note gained or lost made-up sections from one run to the next.
+const TEMPERATURE = 0.2;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -51,7 +57,7 @@ export function extractJson(output: unknown): unknown {
 
 async function callModel(ai: TextModel, model: string, messages: ChatMessage[]): Promise<unknown> {
   try {
-    return await ai.run(model, { messages, max_tokens: MAX_TOKENS });
+    return await ai.run(model, { messages, max_tokens: MAX_TOKENS, temperature: TEMPERATURE });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes("4006") || /daily free allocation/i.test(message)) {

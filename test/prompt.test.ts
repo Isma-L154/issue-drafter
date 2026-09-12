@@ -14,7 +14,7 @@ describe("buildMessages", () => {
     expect(user?.role).toBe("user");
     expect(user?.content).toContain("Requested type: auto");
     expect(user?.content).toContain('Note:\n"""\nel bot se traba\n"""');
-    expect(user?.content.endsWith("\n\n/no_think")).toBe(true);
+    expect(user?.content).not.toContain("/no_think");
   });
 
   it("includes the current draft and the correction when correcting", () => {

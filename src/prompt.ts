@@ -24,10 +24,11 @@ Rules:
 - "bug": something that exists behaves wrongly. "feature": new or changed behavior. "task": refactoring, cleanup, investigation or maintenance. If a type is requested, use it.
 - Bug titles describe the failure ("Bot hangs when loading long playlists"). Feature and task titles are imperative ("Load long playlists progressively"). At most 80 characters.
 - Never invent facts: no versions, numbers, file names, commands, error messages or reproduction steps that the note does not state.
-- steps: only steps the note actually describes, otherwise [].
-- impact, context and outOfScope: only if the note gives them, otherwise empty.
+- steps: only when the note lists the actions taken, in order ("I open X, drag Y, press Z"). Describing a situation ("when I add a long playlist") is not a list of steps: put it in the summary and use [].
+- expected and actual: restate only what the note says or directly implies.
+- impact, context and outOfScope: only facts the note states, otherwise empty. Never describe the application, its screens or the user experience in general terms.
 - acceptance: at least one checkable criterion that follows directly from what the note says should happen.
-- openQuestions: what a maintainer would need to ask because the note leaves it unclear. Use [] only when nothing is unclear.
+- openQuestions: at least one question whenever the note leaves out something a maintainer needs, such as where it happens, how often, since when, or what exactly should happen instead. Short notes almost always need questions. Use [] only when nothing is unclear.
 - Keep the author's meaning. Do not add solutions, opinions or scope the note does not contain.`;
 
 export function buildMessages(input: DraftInput, problems: string[] = []): ChatMessage[] {
@@ -45,10 +46,9 @@ export function buildMessages(input: DraftInput, problems: string[] = []): ChatM
     parts.push(`Your previous answer was rejected:\n${problems.map((p) => `- ${p}`).join("\n")}\nReturn a corrected JSON object.`);
   }
 
-  // Qwen3 reasons before answering unless told not to. Measured: thinking cost
-  // 18 Neurons and 4.3 s per draft, without it 4 Neurons and 1.7 s.
-  parts.push("/no_think");
-
+  // Qwen3 reasoning stays on. With `/no_think` a draft cost 4 Neurons instead of
+  // 18, but the evaluation showed empty open questions on every note, including
+  // a four-word one, and invented reproduction steps.
   return [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: parts.join("\n\n") },
