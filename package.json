@@ -1,0 +1,29 @@
+{
+  "name": "issue-drafter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Turns an informal Spanish note into an English GitHub issue from a fixed template.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types",
+    "typecheck": "wrangler types && tsc --noEmit",
+    "test": "vitest run --no-watch",
+    "eval": "node scripts/eval.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.131.1"
+  },
+  "overrides": {
+    "sharp": "0.35.4"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "workerd@1.20260815.1": true,
+    "workerd@1.20260911.1": true
+  }
+}

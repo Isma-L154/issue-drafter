@@ -1,0 +1,2 @@
+# Copy to .dev.vars for `wrangler dev`. Production uses `wrangler secret put`.
+GITHUB_TOKEN=
