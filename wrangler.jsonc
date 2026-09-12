@@ -32,10 +32,11 @@
     "MODEL": "@cf/qwen/qwen3-30b-a3b-fp8",
     "GITHUB_OWNER": "Isma-L154",
     "SITE_ORIGIN": "https://issues.cloudils.com",
-    // Filled in once the Access application exists. Empty values make every
+    // The Access application "Issue Drafter". Neither value is secret: both
+    // appear in the login redirect. Empty values would make every
     // authenticated route refuse, so a missing Access setup fails closed.
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": "",
+    "ACCESS_TEAM_DOMAIN": "tiny-snow-e0a3.cloudflareaccess.com",
+    "ACCESS_AUD": "da165935fa7365ae60b032a08c23f226eda0a51aa001117ae060ef6ec26cbe03",
     // 150 drafts at the worst measured cost stay under 10,000 daily Neurons.
     "DAILY_DRAFT_CAP": "150",
     "DAILY_PUBLISH_CAP": "50"
