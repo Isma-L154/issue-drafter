@@ -1,0 +1,58 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two deploys racing would leave whichever finished last in production.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx wrangler types
+      - run: npx tsc --noEmit
+      - run: npm test
+      - name: Deploy to Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 51d7355a63c1a3eba08d8ef63a889b3b
+        run: npx wrangler deploy
+
+      - name: Verify the Worker serves and Access guards it
+        run: |
+          set -euo pipefail
+          site="https://issues.cloudils.com"
+          # Health is the only path Access bypasses.
+          for attempt in $(seq 1 12); do
+            body="$(curl -fsS --max-time 20 "$site/api/health" || true)"
+            case "$body" in
+              *'"ok":true'*) echo "healthy: $body"; break ;;
+            esac
+            if [ "$attempt" = 12 ]; then echo "::error::/api/health never answered ok"; exit 1; fi
+            sleep 15
+          done
+          # Without an Access session every other path must redirect to the login,
+          # never reach the Worker. Captured, then compared, so no pipe can mask a failure.
+          for path in / /api/repos; do
+            code="$(curl -sS -o /dev/null --max-time 20 -w '%{http_code}' "$site$path")"
+            location="$(curl -sS -o /dev/null --max-time 20 -w '%{redirect_url}' "$site$path")"
+            case "$code:$location" in
+              302:https://*.cloudflareaccess.com/*) echo "$path is guarded by Access" ;;
+              *) echo "::error::$path answered $code to '${location}' without a session"; exit 1 ;;
+            esac
+          done

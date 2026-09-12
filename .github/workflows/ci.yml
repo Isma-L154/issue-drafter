@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      # Generated from wrangler.jsonc; reads config only, needs no credentials.
+      - run: npx wrangler types
+      - run: npx tsc --noEmit
+      # workerd with `remoteBindings: false`: no credential, no reach into the account.
+      - run: npm test
+      - run: node --check public/app.js
+
+  secrets:
+    name: No credentials committed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Scan tracked files for credential patterns
+        run: |
+          # Excludes itself: the pattern line matches every pattern it defines.
+          patterns='BEGIN [A-Z ]*PRIVATE KEY|github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-|sk-[A-Za-z0-9]{20,}|discord(app)?\.com/api/webhooks'
+          hits=$(git grep -InE "$patterns" -- . ':!.github/workflows/ci.yml' || true)
+          if [ -n "$hits" ]; then echo "Possible credentials committed:"; echo "$hits"; exit 1; fi
+          echo "No credential patterns found"
+      - name: No local secrets file is tracked
+        run: |
+          tracked=$(git ls-files | grep -E '(^|/)\.dev\.vars$|(^|/)\.env$' || true)
+          if [ -n "$tracked" ]; then echo "Tracked secrets file:"; echo "$tracked"; exit 1; fi
+          echo "No secrets file tracked"
+
+  language:
+    name: Published text is English
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: No Spanish accented characters outside prose and fixtures
+        run: |
+          # Excludes itself (the class is made of the characters it looks for),
+          # Markdown, and the evaluation fixtures, which are Spanish on purpose.
+          hits=$(git grep -InE '[áéíóúñÁÉÍÓÚÑ¿¡]' -- . ':!*.md' ':!test/fixtures/**' ':!.github/workflows/ci.yml' || true)
+          if [ -n "$hits" ]; then echo "Spanish text found:"; echo "$hits"; exit 1; fi
+          echo "No Spanish detected in code or config"
