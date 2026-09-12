@@ -32,7 +32,8 @@ body {
 }
 
 main { max-width: 760px; margin: 0 auto; }
-h1 { font-size: 1.4rem; margin: 0 0 16px; }
+.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+h1 { font-size: 1.4rem; margin: 0; }
 
 .card {
   background: var(--card);

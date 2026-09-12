@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Issue Drafter">
+  <rect width="64" height="64" rx="14" fill="#1f6feb"/>
+  <circle cx="29" cy="29" r="15" fill="none" stroke="#ffffff" stroke-width="5"/>
+  <circle cx="29" cy="29" r="4.5" fill="#ffffff"/>
+  <path d="M41 51 L53 39" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+</svg>
