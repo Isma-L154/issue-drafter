@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    # @cloudflare/vitest-pool-workers declares a peer range of vitest ^4.1.0;
+    # a major bump fails CI until the pool supports it.
+    ignore:
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
     groups:
       toolchain:
         patterns: ["*"]
