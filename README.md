@@ -47,8 +47,12 @@ Everything runs on free tiers.
 - Cloudflare Access guards the site, and the Worker verifies the Access JWT on
   every API call, so a misconfigured Access application fails closed.
 - The GitHub token can only read and write issues.
-- Per-minute rate limits and daily caps on drafts (150) and publishes (50).
-- Same-origin JSON requests only; strict Content Security Policy.
+- Per-minute rate limits on every GitHub or model call, checked before the call,
+  and daily caps on drafts (150) and publishes (50).
+- Same-origin JSON requests only, bodies capped at 64 KB while they stream.
+- Strict Content Security Policy and HSTS.
+- Missing configuration answers 500 everywhere, health included, so a broken
+  deploy fails its verification.
 - Note and draft contents are never logged.
 
 ## Development

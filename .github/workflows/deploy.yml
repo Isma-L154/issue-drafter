@@ -46,6 +46,11 @@ jobs:
             if [ "$attempt" = 12 ]; then echo "::error::/api/health never answered ok"; exit 1; fi
             sleep 15
           done
+          headers="$(curl -sS -o /dev/null -D - --max-time 20 "$site/api/health")"
+          case "$headers" in
+            *[Ss]trict-[Tt]ransport-[Ss]ecurity:*) echo "HSTS is served" ;;
+            *) echo "::error::/api/health has no Strict-Transport-Security header"; exit 1 ;;
+          esac
           # Without an Access session every other path must redirect to the login,
           # never reach the Worker. Captured, then compared, so no pipe can mask a failure.
           for path in / /api/repos; do
