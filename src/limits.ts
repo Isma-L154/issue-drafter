@@ -1,4 +1,5 @@
 export type LimitKind = "draft" | "publish";
+export type MinuteKind = LimitKind | "repos";
 
 export interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>;
@@ -15,13 +16,14 @@ export interface DailyResult {
 }
 
 export interface Limits {
-  perMinute(kind: LimitKind, identity: string): Promise<boolean>;
+  perMinute(kind: MinuteKind, identity: string): Promise<boolean>;
   consumeDaily(kind: LimitKind, now: Date): Promise<DailyResult>;
 }
 
 interface LimitsOptions {
   draftLimiter: RateLimiter;
   publishLimiter: RateLimiter;
+  reposLimiter: RateLimiter;
   store: UsageStore;
   draftCap: number;
   publishCap: number;
@@ -35,10 +37,15 @@ function nextUtcMidnight(now: Date): string {
 }
 
 export function createLimits(options: LimitsOptions): Limits {
+  const limiters: Record<MinuteKind, RateLimiter> = {
+    draft: options.draftLimiter,
+    publish: options.publishLimiter,
+    repos: options.reposLimiter,
+  };
+
   return {
     async perMinute(kind, identity) {
-      const limiter = kind === "draft" ? options.draftLimiter : options.publishLimiter;
-      return (await limiter.limit({ key: identity })).success;
+      return (await limiters[kind].limit({ key: identity })).success;
     },
 
     // Not atomic: two simultaneous requests can both read the same count. With

@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
   <title>Issue Drafter</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
@@ -12,47 +13,102 @@
 <body>
   <main>
     <header class="brand">
-      <img src="/logo.svg" alt="" width="36" height="36">
-      <h1>Issue Drafter</h1>
+      <img src="/logo.svg" alt="" width="44" height="44">
+      <div>
+        <h1>Issue Drafter</h1>
+        <p class="tagline">Write it your way. Publish it in English.</p>
+      </div>
     </header>
 
-    <section class="card">
-      <label for="repo">Repository</label>
-      <select id="repo" required><option value="">Loading...</option></select>
+    <section class="card" aria-labelledby="compose-heading">
+      <h2 id="compose-heading" class="card-title"><span class="step" aria-hidden="true">1</span>Write a note</h2>
 
-      <label for="type">Type</label>
-      <select id="type">
-        <option value="auto">Auto</option>
-        <option value="bug">Bug</option>
-        <option value="feature">Feature</option>
-        <option value="task">Task</option>
-      </select>
+      <div class="field">
+        <label for="repo">Repository</label>
+        <div class="select">
+          <select id="repo" required><option value="">Loading repositories...</option></select>
+        </div>
+      </div>
 
-      <label for="note">Note, in your own words</label>
-      <textarea id="note" rows="7" maxlength="4000"></textarea>
+      <fieldset id="type" class="field">
+        <legend>Type</legend>
+        <div class="segmented">
+          <label><input type="radio" name="type" value="auto" checked><span>Auto</span></label>
+          <label><input type="radio" name="type" value="bug"><span><i class="dot bug"></i>Bug</span></label>
+          <label><input type="radio" name="type" value="feature"><span><i class="dot feature"></i>Feature</span></label>
+          <label><input type="radio" name="type" value="task"><span><i class="dot task"></i>Task</span></label>
+        </div>
+      </fieldset>
 
-      <button id="generate" type="button">Generate</button>
-    </section>
+      <div class="field">
+        <div class="label-row">
+          <label for="note">Note, in your own words</label>
+          <span id="note-count" class="counter">0 / 4000</span>
+        </div>
+        <textarea id="note" rows="7" maxlength="4000" placeholder="Describe it informally. Whatever you leave out becomes an open question, never an invented detail."></textarea>
+      </div>
 
-    <section id="preview" class="card" hidden>
-      <p class="meta">Detected type: <strong id="detected-type"></strong></p>
-
-      <label for="title">Title</label>
-      <input id="title" type="text" maxlength="120">
-
-      <label for="body">Body</label>
-      <textarea id="body" rows="18"></textarea>
-
-      <label for="correction">Correction</label>
-      <textarea id="correction" rows="3" maxlength="4000"></textarea>
       <div class="actions">
-        <button id="correct" type="button" class="secondary">Correct</button>
-        <button id="publish" type="button">Publish</button>
+        <span class="hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> to generate</span>
+        <button id="generate" type="button" class="primary">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+          Generate draft
+        </button>
       </div>
     </section>
 
-    <p id="status" role="status" aria-live="polite"></p>
-    <p><a id="result" hidden target="_blank" rel="noopener noreferrer"></a></p>
+    <a id="result" class="result" hidden target="_blank" rel="noopener noreferrer">
+      <svg class="icon result-check" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.8"/></svg>
+      <span class="result-text">
+        <strong id="result-title"></strong>
+        <span>Open it on GitHub</span>
+      </span>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>
+    </a>
+
+    <section id="preview" class="card" aria-labelledby="review-heading" hidden>
+      <div class="card-head">
+        <h2 id="review-heading" class="card-title"><span class="step" aria-hidden="true">2</span>Review and publish</h2>
+        <span class="badge" id="detected-type"></span>
+      </div>
+
+      <div class="field">
+        <div class="label-row">
+          <label for="title">Title</label>
+          <span id="title-count" class="counter">0 / 120</span>
+        </div>
+        <input id="title" type="text" maxlength="120">
+      </div>
+
+      <div class="field">
+        <div class="label-row">
+          <label for="body">Body</label>
+          <div class="tabs" role="tablist" aria-label="Body view">
+            <button id="tab-write" type="button" role="tab" aria-selected="true" aria-controls="body">Markdown</button>
+            <button id="tab-render" type="button" role="tab" aria-selected="false" aria-controls="rendered">Preview</button>
+          </div>
+        </div>
+        <textarea id="body" rows="16" spellcheck="false"></textarea>
+        <div id="rendered" class="markdown" role="tabpanel" aria-labelledby="tab-render" hidden></div>
+      </div>
+
+      <div class="field">
+        <label for="correction">Something off? Say what should change</label>
+        <textarea id="correction" rows="3" maxlength="4000" placeholder="For example: it only happens on mobile, and there are no steps."></textarea>
+      </div>
+
+      <div class="actions">
+        <button id="discard" type="button" class="ghost">Discard</button>
+        <span class="spacer"></span>
+        <button id="correct" type="button" class="secondary">Apply correction</button>
+        <button id="publish" type="button" class="primary">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          Publish to GitHub
+        </button>
+      </div>
+    </section>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
   </main>
 </body>
 </html>

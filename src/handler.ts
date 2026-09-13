@@ -1,6 +1,6 @@
 import { DraftError } from "./ai.ts";
 import { GitHubError, type CreatedIssue, type Repo } from "./github.ts";
-import type { Limits, LimitKind } from "./limits.ts";
+import type { Limits, LimitKind, MinuteKind } from "./limits.ts";
 import type { DraftInput } from "./prompt.ts";
 import { LABELS, renderIssue } from "./render.ts";
 import { ISSUE_TYPES, isRequestedType, validateFields, type IssueFields, type IssueType } from "./schema.ts";
@@ -26,6 +26,7 @@ const MAX_ISSUE_BODY = 60000;
 const API_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
+  "strict-transport-security": "max-age=31536000; includeSubDomains",
   "x-content-type-options": "nosniff",
   "referrer-policy": "no-referrer",
   "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
@@ -44,11 +45,12 @@ class HttpError extends Error {
   }
 }
 
-function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
+export function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...API_HEADERS, ...headers } });
 }
 
 const badRequest = (message: string) => new HttpError(400, message);
+const tooLarge = () => new HttpError(413, "The request body is too large.");
 
 function boundedText(value: unknown, name: string, max: number): string {
   const text = typeof value === "string" ? value.trim() : "";
@@ -62,9 +64,37 @@ function passesCsrf(request: Request, siteOrigin: string): boolean {
   return contentType.startsWith("application/json") && request.headers.get("origin") === siteOrigin;
 }
 
+// Counted while it streams, so an oversized body is refused before it is held
+// in memory, whether or not it declares a length.
+async function readBody(request: Request): Promise<string> {
+  if (Number(request.headers.get("content-length")) > MAX_BODY_BYTES) throw tooLarge();
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      await reader.cancel();
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 async function readJson(request: Request): Promise<Record<string, unknown>> {
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) throw badRequest("The request body is too large.");
+  const text = await readBody(request);
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -75,14 +105,23 @@ async function readJson(request: Request): Promise<Record<string, unknown>> {
   return value as Record<string, unknown>;
 }
 
-async function enforceLimits(deps: Deps, kind: LimitKind, identity: string): Promise<void> {
+async function checkPerMinute(deps: Deps, kind: MinuteKind, identity: string): Promise<void> {
   if (!(await deps.limits.perMinute(kind, identity))) {
     throw new HttpError(429, "Too many requests. Wait a minute and try again.", {}, { "retry-after": "60" });
   }
+}
+
+async function consumeDaily(deps: Deps, kind: LimitKind): Promise<void> {
   const daily = await deps.limits.consumeDaily(kind, deps.now());
   if (!daily.allowed) {
     throw new HttpError(429, "The daily limit has been reached.", { resetAt: daily.resetAt });
   }
+}
+
+async function reposRoute(_request: Request, deps: Deps, identity: string): Promise<Response> {
+  // Each listing is up to five GitHub requests, all spent from the token's quota.
+  await checkPerMinute(deps, "repos", identity);
+  return json(200, { repos: await deps.github.listRepos() });
 }
 
 async function draftRoute(request: Request, deps: Deps, identity: string): Promise<Response> {
@@ -100,7 +139,8 @@ async function draftRoute(request: Request, deps: Deps, identity: string): Promi
     input.correction = boundedText(body["correction"], "correction", MAX_NOTE);
   }
 
-  await enforceLimits(deps, "draft", identity);
+  await checkPerMinute(deps, "draft", identity);
+  await consumeDaily(deps, "draft");
   const fields = await deps.draft(input);
   return json(200, { fields, preview: renderIssue(fields) });
 }
@@ -111,13 +151,17 @@ async function publishRoute(request: Request, deps: Deps, identity: string): Pro
   if (!(ISSUE_TYPES as readonly unknown[]).includes(type)) throw badRequest('type must be "bug", "feature" or "task".');
   const title = boundedText(body["title"], "title", MAX_TITLE);
   const issueBody = boundedText(body["body"], "body", MAX_ISSUE_BODY);
+
+  // Before the repository check, which lists repositories on GitHub. The daily
+  // cap waits until the request is known to be valid.
+  await checkPerMinute(deps, "publish", identity);
   const repo = body["repo"];
   const repos = await deps.github.listRepos();
   if (typeof repo !== "string" || !repos.some((candidate) => candidate.name === repo)) {
     throw badRequest("repo must be one of your repositories.");
   }
 
-  await enforceLimits(deps, "publish", identity);
+  await consumeDaily(deps, "publish");
   const label = LABELS[type as IssueType];
   await deps.github.ensureLabel(repo, label);
   const created = await deps.github.createIssue(repo, { title, body: issueBody, labels: [label] });
@@ -144,7 +188,7 @@ function errorResponse(error: unknown): Response {
 type Route = { method: string; csrf: boolean; run: (request: Request, deps: Deps, identity: string) => Promise<Response> };
 
 const ROUTES: Record<string, Route> = {
-  "/api/repos": { method: "GET", csrf: false, run: async (_request, deps) => json(200, { repos: await deps.github.listRepos() }) },
+  "/api/repos": { method: "GET", csrf: false, run: reposRoute },
   "/api/draft": { method: "POST", csrf: true, run: draftRoute },
   "/api/publish": { method: "POST", csrf: true, run: publishRoute },
 };

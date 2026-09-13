@@ -8,6 +8,8 @@ describe("the page", () => {
     const response = await worker.fetch(new Request("https://issues.cloudils.com/"), env, ctx);
     await waitOnExecutionContext(ctx);
     expect(response.status).toBe(200);
+    expect(response.headers.get("strict-transport-security")).toBe("max-age=31536000; includeSubDomains");
+    expect(response.headers.get("content-security-policy")).toContain("object-src 'none'; base-uri 'none'");
     const html = await response.text();
     for (const id of ["repo", "type", "note", "generate", "preview", "detected-type", "title", "body", "correction", "correct", "publish", "status", "result"]) {
       expect(html).toContain(`id="${id}"`);

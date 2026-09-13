@@ -20,7 +20,7 @@ describe("consumeDaily", () => {
 
   it("counts per kind and UTC day, and reports the next midnight", async () => {
     const { store, data, ttls } = memoryStore();
-    const limits = createLimits({ draftLimiter: allow, publishLimiter: allow, store, draftCap: 2, publishCap: 1 });
+    const limits = createLimits({ draftLimiter: allow, publishLimiter: allow, reposLimiter: allow, store, draftCap: 2, publishCap: 1 });
 
     expect(await limits.consumeDaily("draft", now)).toEqual({ allowed: true, resetAt: "2026-09-13T00:00:00.000Z" });
     expect(await limits.consumeDaily("draft", now)).toMatchObject({ allowed: true });
@@ -34,7 +34,7 @@ describe("consumeDaily", () => {
 
   it("fails closed on an invalid cap", async () => {
     const { store } = memoryStore();
-    const limits = createLimits({ draftLimiter: allow, publishLimiter: allow, store, draftCap: Number(""), publishCap: Number.NaN });
+    const limits = createLimits({ draftLimiter: allow, publishLimiter: allow, reposLimiter: allow, store, draftCap: Number(""), publishCap: Number.NaN });
     expect(await limits.consumeDaily("draft", now)).toMatchObject({ allowed: false });
     expect(await limits.consumeDaily("publish", now)).toMatchObject({ allowed: false });
   });
@@ -44,19 +44,26 @@ describe("perMinute", () => {
   it("uses the limiter of the matching kind, keyed by identity", async () => {
     const keys: string[] = [];
     const recording: RateLimiter = { async limit({ key }) { keys.push(key); return { success: true }; } };
-    const limits = createLimits({ draftLimiter: recording, publishLimiter: deny, store: memoryStore().store, draftCap: 1, publishCap: 1 });
+    const limits = createLimits({ draftLimiter: recording, publishLimiter: deny, reposLimiter: deny, store: memoryStore().store, draftCap: 1, publishCap: 1 });
     expect(await limits.perMinute("draft", "owner@example.com")).toBe(true);
     expect(await limits.perMinute("publish", "owner@example.com")).toBe(false);
+    expect(await limits.perMinute("repos", "owner@example.com")).toBe(false);
     expect(keys).toEqual(["owner@example.com"]);
   });
 
-  it("is enforced by the real draft binding after 10 requests", async () => {
+  // The limits match wrangler.jsonc, so a changed binding fails here.
+  it.each([
+    ["draft", 10],
+    ["publish", 5],
+    ["repos", 20],
+  ] as const)("is enforced by the real %s binding after %i requests", async (kind, limit) => {
     const limits = createLimits({
-      draftLimiter: env.DRAFT_LIMITER, publishLimiter: env.PUBLISH_LIMITER, store: env.USAGE, draftCap: 150, publishCap: 50,
+      draftLimiter: env.DRAFT_LIMITER, publishLimiter: env.PUBLISH_LIMITER, reposLimiter: env.REPOS_LIMITER,
+      store: env.USAGE, draftCap: 150, publishCap: 50,
     });
     const results: boolean[] = [];
-    for (let i = 0; i < 11; i++) results.push(await limits.perMinute("draft", "burst@example.com"));
-    expect(results.slice(0, 10).every(Boolean)).toBe(true);
-    expect(results[10]).toBe(false);
+    for (let i = 0; i <= limit; i++) results.push(await limits.perMinute(kind, `burst-${kind}@example.com`));
+    expect(results.slice(0, limit).every(Boolean)).toBe(true);
+    expect(results[limit]).toBe(false);
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DraftError } from "../src/ai.ts";
 import { GitHubError } from "../src/github.ts";
 import { handle, type Deps } from "../src/handler.ts";
-import type { DailyResult, LimitKind } from "../src/limits.ts";
+import type { DailyResult, LimitKind, MinuteKind } from "../src/limits.ts";
 import type { IssueFields } from "../src/schema.ts";
 
 const ORIGIN = "https://issues.cloudils.com";
@@ -13,17 +13,17 @@ const fields: IssueFields = {
 };
 
 function makeDeps(overrides: Partial<Deps> = {}) {
-  const calls = { daily: [] as LimitKind[], drafts: 0, labels: [] as string[], issues: [] as unknown[] };
+  const calls = { minute: [] as MinuteKind[], daily: [] as LimitKind[], drafts: 0, listings: 0, labels: [] as string[], issues: [] as unknown[] };
   const deps: Deps = {
     verify: async () => "owner@example.com",
     draft: async () => { calls.drafts++; return fields; },
     github: {
-      listRepos: async () => [{ name: "LoopifyBot", private: false }],
+      listRepos: async () => { calls.listings++; return [{ name: "LoopifyBot", private: false }]; },
       ensureLabel: async (_repo, name) => { calls.labels.push(name); },
       createIssue: async (_repo, issue) => { calls.issues.push(issue); return { number: 7, url: "https://github.com/Isma-L154/LoopifyBot/issues/7" }; },
     },
     limits: {
-      perMinute: async () => true,
+      perMinute: async (kind) => { calls.minute.push(kind); return true; },
       consumeDaily: async (kind): Promise<DailyResult> => { calls.daily.push(kind); return { allowed: true, resetAt: "2026-09-13T00:00:00.000Z" }; },
     },
     now: () => new Date("2026-09-12T12:00:00Z"),
@@ -69,10 +69,23 @@ describe("routing and authentication", () => {
     const { deps } = makeDeps();
     const response = await handle(get("/api/repos"), deps);
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("strict-transport-security")).toBe("max-age=31536000; includeSubDomains");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
     expect(response.headers.get("content-security-policy")).toBe("default-src 'none'; frame-ancestors 'none'");
     expect(await response.json()).toEqual({ repos: [{ name: "LoopifyBot", private: false }] });
+  });
+});
+
+describe("GET /api/repos", () => {
+  it("answers 429 on the per-minute limit without calling GitHub", async () => {
+    const { deps, calls } = makeDeps();
+    deps.limits = { ...deps.limits, perMinute: async (kind) => { calls.minute.push(kind); return false; } };
+    const response = await handle(get("/api/repos"), deps);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(calls.minute).toEqual(["repos"]);
+    expect(calls.listings).toBe(0);
   });
 });
 
@@ -113,9 +126,28 @@ describe("POST /api/draft", () => {
     expect(calls.daily).toEqual([]);
   });
 
-  it("rejects a body over 64 KB", async () => {
-    const { deps } = makeDeps();
-    expect((await handle(post("/api/draft", "x".repeat(64 * 1024 + 1)), deps)).status).toBe(400);
+  it("rejects a body over 64 KB with 413", async () => {
+    const { deps, calls } = makeDeps();
+    expect((await handle(post("/api/draft", "x".repeat(64 * 1024 + 1)), deps)).status).toBe(413);
+    expect(calls.drafts).toBe(0);
+  });
+
+  it("stops reading a streamed body without a length once it passes 64 KB", async () => {
+    const { deps, calls } = makeDeps();
+    const chunk = new TextEncoder().encode("x".repeat(16 * 1024));
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled++;
+        if (pulled > 100) controller.close();
+        else controller.enqueue(chunk);
+      },
+    });
+    const request = new Request(`${ORIGIN}/api/draft`, { method: "POST", headers: { "content-type": "application/json", origin: ORIGIN }, body });
+    expect(request.headers.get("content-length")).toBeNull();
+    expect((await handle(request, deps)).status).toBe(413);
+    expect(pulled).toBeLessThan(10);
+    expect(calls.drafts).toBe(0);
   });
 
   it("passes a correction with its previous draft to the model", async () => {
@@ -165,7 +197,17 @@ describe("POST /api/publish", () => {
     expect(await response.json()).toEqual({ number: 7, url: "https://github.com/Isma-L154/LoopifyBot/issues/7" });
     expect(calls.labels).toEqual(["task"]);
     expect(calls.issues).toEqual([{ title: "Remove dead code", body: "## Goal\n\nLess code.", labels: ["task"] }]);
+    expect(calls.minute).toEqual(["publish"]);
     expect(calls.daily).toEqual(["publish"]);
+  });
+
+  it("applies the per-minute limit before listing repositories", async () => {
+    const { deps, calls } = makeDeps();
+    deps.limits = { ...deps.limits, perMinute: async () => false };
+    const response = await handle(post("/api/publish", { ...valid, repo: "someone-elses" }), deps);
+    expect(response.status).toBe(429);
+    expect(calls.listings).toBe(0);
+    expect(calls.daily).toEqual([]);
   });
 
   it.each([
