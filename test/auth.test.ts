@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { createAccessVerifier } from "../src/auth.ts";
-import type { Fetch } from "../src/github.ts";
+import type { Fetch } from "../src/http.ts";
 
 const TEAM = "example.cloudflareaccess.com";
 const AUD = "aud-tag";

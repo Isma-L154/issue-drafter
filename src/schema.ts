@@ -37,12 +37,17 @@ export type IssueFields = BugFields | FeatureFields | TaskFields;
 
 export type Validation = { ok: true; fields: IssueFields } | { ok: false; problems: string[] };
 
-const MAX_TITLE = 120;
+// Also the cap the publish route applies to a title the author edited.
+export const MAX_TITLE = 120;
 const MAX_TEXT = 4000;
 const MAX_ITEMS = 20;
 
+export function isIssueType(value: unknown): value is IssueType {
+  return (ISSUE_TYPES as readonly unknown[]).includes(value);
+}
+
 export function isRequestedType(value: unknown): value is RequestedType {
-  return value === "auto" || (ISSUE_TYPES as readonly unknown[]).includes(value);
+  return value === "auto" || isIssueType(value);
 }
 
 export function validateFields(raw: unknown, requested: RequestedType): Validation {
@@ -51,7 +56,7 @@ export function validateFields(raw: unknown, requested: RequestedType): Validati
   }
   const source = raw as Record<string, unknown>;
   const type = source["type"];
-  if (!(ISSUE_TYPES as readonly unknown[]).includes(type)) {
+  if (!isIssueType(type)) {
     return { ok: false, problems: ['type must be one of "bug", "feature", "task".'] };
   }
 
@@ -98,7 +103,7 @@ export function validateFields(raw: unknown, requested: RequestedType): Validati
     const goal = text("goal", true);
     const context = text("context");
     const scope = list("scope", true);
-    fields = { type: "task", title, goal, context, scope, acceptance: list("acceptance", true), outOfScope: list("outOfScope"), openQuestions: list("openQuestions") };
+    fields = { type, title, goal, context, scope, acceptance: list("acceptance", true), outOfScope: list("outOfScope"), openQuestions: list("openQuestions") };
   }
 
   return problems.length > 0 ? { ok: false, problems } : { ok: true, fields };

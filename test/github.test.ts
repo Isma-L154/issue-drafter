@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { GitHubClient, GitHubError, type Fetch } from "../src/github.ts";
+import { GitHubClient, GitHubError } from "../src/github.ts";
+import type { Fetch } from "../src/http.ts";
 
 interface Recorded { url: string; method: string; headers: Headers; body: unknown }
 

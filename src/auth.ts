@@ -1,4 +1,4 @@
-import type { Fetch } from "./github.ts";
+import { globalFetch, type Fetch } from "./http.ts";
 
 export interface AccessConfig {
   teamDomain: string;
@@ -23,7 +23,7 @@ function decodeJson(segment: string): Record<string, unknown> | null {
   }
 }
 
-export function createAccessVerifier(config: AccessConfig, fetcher: Fetch = (input, init) => fetch(input, init)): AccessVerifier {
+export function createAccessVerifier(config: AccessConfig, fetcher: Fetch = globalFetch): AccessVerifier {
   let keys: KeyWithId[] | null = null;
 
   async function loadKeys(): Promise<KeyWithId[]> {

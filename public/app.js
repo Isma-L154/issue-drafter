@@ -1,16 +1,27 @@
 const STORAGE_KEY = "issue-drafter:state";
-const TYPES = ["auto", "bug", "feature", "task"];
+const ISSUE_TYPES = ["bug", "feature", "task"];
+const TYPES = ["auto", ...ISSUE_TYPES];
 const el = (id) => document.getElementById(id);
 const state = { repo: "", type: "auto", note: "", fields: null, title: "", body: "" };
 let statusTimer;
 
+const isDraft = (value) => typeof value === "object" && value !== null && ISSUE_TYPES.includes(value.type);
+
+// What is stored was written by an older version of this page as often as by
+// the last session, so each key is restored only when its shape still fits.
+// Anything else falls back to the empty default rather than reaching the DOM.
 function loadState() {
+  let saved = {};
   try {
-    Object.assign(state, JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"));
+    saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") ?? {};
   } catch {
     // Storage can be unavailable or hold garbage; the page works without it.
   }
-  if (!TYPES.includes(state.type)) state.type = "auto";
+  for (const key of ["repo", "note", "title", "body"]) {
+    if (typeof saved[key] === "string") state[key] = saved[key];
+  }
+  state.type = TYPES.includes(saved.type) ? saved.type : "auto";
+  state.fields = isDraft(saved.fields) ? saved.fields : null;
 }
 
 function saveState() {

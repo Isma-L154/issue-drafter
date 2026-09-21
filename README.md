@@ -59,9 +59,10 @@ Everything runs on free tiers.
 
 ```sh
 npm install
+npm run dev        # copy .dev.vars.example to .dev.vars and add a GitHub token first
 npm run typecheck
 npm test
-npm run eval   # runs sample notes against the real model; needs CLOUDFLARE_API_TOKEN
+npm run eval       # runs sample notes against the real model; needs CLOUDFLARE_API_TOKEN
 ```
 
 ## Configuration

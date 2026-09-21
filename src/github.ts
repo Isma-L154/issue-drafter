@@ -1,10 +1,16 @@
-import type { RenderedIssue } from "./render.ts";
-
-export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
+import { globalFetch, type Fetch } from "./http.ts";
 
 export interface Repo {
   name: string;
   private: boolean;
+}
+
+// What this client sends to GitHub. It matches what `renderIssue` produces,
+// but the author can edit the body before publishing, so it is its own contract.
+export interface NewIssue {
+  title: string;
+  body: string;
+  labels: string[];
 }
 
 export interface CreatedIssue {
@@ -53,8 +59,7 @@ export class GitHubClient {
   constructor(token: string, owner: string, fetcher?: Fetch) {
     this.token = token;
     this.owner = owner;
-    // Wrapped: calling a stored `fetch` as a method throws "Illegal invocation" in workerd.
-    this.fetcher = fetcher ?? ((input, init) => fetch(input, init));
+    this.fetcher = fetcher ?? globalFetch;
   }
 
   private request(url: string, method = "GET", body?: unknown): Promise<Response> {
@@ -105,7 +110,7 @@ export class GitHubClient {
     throw await errorFrom(created);
   }
 
-  async createIssue(repo: string, issue: RenderedIssue): Promise<CreatedIssue> {
+  async createIssue(repo: string, issue: NewIssue): Promise<CreatedIssue> {
     const response = await this.request(`${this.repoPath(repo)}/issues`, "POST", {
       title: issue.title,
       body: issue.body,
