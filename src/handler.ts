@@ -1,5 +1,5 @@
 import { DraftError } from "./ai.ts";
-import { GitHubError, type CreatedIssue, type Repo } from "./github.ts";
+import { GitHubError, type CreatedIssue, type NewIssue, type Repo } from "./github.ts";
 import type { Limits, LimitKind, MinuteKind } from "./limits.ts";
 import type { DraftInput } from "./prompt.ts";
 import { LABELS, renderIssue } from "./render.ts";
@@ -11,7 +11,7 @@ export interface Deps {
   github: {
     listRepos(): Promise<Repo[]>;
     ensureLabel(repo: string, name: string): Promise<void>;
-    createIssue(repo: string, issue: { title: string; body: string; labels: string[] }): Promise<CreatedIssue>;
+    createIssue(repo: string, issue: NewIssue): Promise<CreatedIssue>;
   };
   limits: Limits;
   now(): Date;
