@@ -3,7 +3,7 @@ import { GitHubError, type CreatedIssue, type Repo } from "./github.ts";
 import type { Limits, LimitKind, MinuteKind } from "./limits.ts";
 import type { DraftInput } from "./prompt.ts";
 import { LABELS, renderIssue } from "./render.ts";
-import { ISSUE_TYPES, isRequestedType, validateFields, type IssueFields, type IssueType } from "./schema.ts";
+import { MAX_TITLE, isIssueType, isRequestedType, validateFields, type IssueFields } from "./schema.ts";
 
 export interface Deps {
   verify(request: Request): Promise<string | null>;
@@ -20,7 +20,6 @@ export interface Deps {
 
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_NOTE = 4000;
-const MAX_TITLE = 120;
 const MAX_ISSUE_BODY = 60000;
 
 const API_HEADERS = {
@@ -148,7 +147,7 @@ async function draftRoute(request: Request, deps: Deps, identity: string): Promi
 async function publishRoute(request: Request, deps: Deps, identity: string): Promise<Response> {
   const body = await readJson(request);
   const type = body["type"];
-  if (!(ISSUE_TYPES as readonly unknown[]).includes(type)) throw badRequest('type must be "bug", "feature" or "task".');
+  if (!isIssueType(type)) throw badRequest('type must be "bug", "feature" or "task".');
   const title = boundedText(body["title"], "title", MAX_TITLE);
   const issueBody = boundedText(body["body"], "body", MAX_ISSUE_BODY);
 
@@ -162,7 +161,7 @@ async function publishRoute(request: Request, deps: Deps, identity: string): Pro
   }
 
   await consumeDaily(deps, "publish");
-  const label = LABELS[type as IssueType];
+  const label = LABELS[type];
   await deps.github.ensureLabel(repo, label);
   const created = await deps.github.createIssue(repo, { title, body: issueBody, labels: [label] });
   return json(201, created);
