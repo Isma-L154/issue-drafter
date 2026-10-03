@@ -16,15 +16,17 @@
     "@cloudflare/vitest-pool-workers": "^0.22.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11",
-    "wrangler": "^4.142.0"
+    "wrangler": "^4.147.0"
   },
   "overrides": {
-    "sharp": "0.35.4",
-    "undici": "7.29.1"
+    "miniflare@5.20260815.0-alpha": {
+      "sharp": "0.35.4",
+      "undici": "7.29.1"
+    }
   },
   "allowScripts": {
     "esbuild@0.28.1": true,
     "workerd@1.20260815.1": true,
-    "workerd@1.20260926.1": true
+    "workerd@1.20261001.1": true
   }
 }
