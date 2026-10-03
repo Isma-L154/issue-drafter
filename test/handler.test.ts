@@ -303,6 +303,13 @@ describe("POST /api/publish to several repositories", () => {
     });
   });
 
+  it("reports an unexpected error in one repository without its detail", async () => {
+    const { deps } = multiRepoDeps({ dotfiles: new TypeError("secret detail") });
+    const response = await handle(post("/api/publish", { ...issue, repos: ["LoopifyBot", "dotfiles"] }), deps);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ failed: [{ repo: "dotfiles", error: "Unexpected error." }] });
+  });
+
   it("answers the first failure when no issue was created", async () => {
     const { deps } = multiRepoDeps({ LoopifyBot: new GitHubError(403, "Forbidden"), dotfiles: new GitHubError(410, "Gone") });
     const response = await handle(post("/api/publish", { ...issue, repos: ["LoopifyBot", "dotfiles"] }), deps);

@@ -156,6 +156,26 @@ async function draftRoute(request: Request, deps: Deps, identity: string): Promi
   return json(200, { fields, preview: renderIssue(fields) });
 }
 
+interface PublishOutcome {
+  created: (CreatedIssue & { repo: string })[];
+  failed: { repo: string; error: unknown }[];
+}
+
+// One at a time: GitHub asks for content-creating requests to be serial. A
+// failing repository is recorded and the rest still get their issue.
+async function publishToEach(github: Deps["github"], repos: string[], issue: NewIssue): Promise<PublishOutcome> {
+  const outcome: PublishOutcome = { created: [], failed: [] };
+  for (const repo of repos) {
+    try {
+      for (const label of issue.labels) await github.ensureLabel(repo, label);
+      outcome.created.push({ repo, ...(await github.createIssue(repo, issue)) });
+    } catch (error) {
+      outcome.failed.push({ repo, error });
+    }
+  }
+  return outcome;
+}
+
 async function publishRoute(request: Request, deps: Deps, identity: string): Promise<Response> {
   const body = await readJson(request);
   const type = body["type"];
@@ -171,19 +191,7 @@ async function publishRoute(request: Request, deps: Deps, identity: string): Pro
   if (!repos.every((repo) => owned.has(repo))) throw badRequest("repos must all be your repositories.");
 
   await consumeDaily(deps, "publish", repos.length);
-  const label = LABELS[type];
-  const issue = { title, body: issueBody, labels: [label] };
-  const created: (CreatedIssue & { repo: string })[] = [];
-  const failed: { repo: string; error: unknown }[] = [];
-  // One at a time: GitHub asks for content-creating requests to be serial.
-  for (const repo of repos) {
-    try {
-      await deps.github.ensureLabel(repo, label);
-      created.push({ repo, ...(await deps.github.createIssue(repo, issue)) });
-    } catch (error) {
-      failed.push({ repo, error });
-    }
-  }
+  const { created, failed } = await publishToEach(deps.github, repos, { title, body: issueBody, labels: [LABELS[type]] });
 
   // With nothing created the request answers as a single-repository publish always has.
   if (created.length === 0) throw failed[0]?.error;
