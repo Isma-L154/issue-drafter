@@ -27,6 +27,8 @@ jobs:
       # Generated from wrangler.jsonc; reads config only, needs no credentials.
       - run: npx wrangler types
       - run: npx tsc --noEmit
+      # Node types only here, so the Worker code cannot reach Node globals.
+      - run: npx tsc --noEmit -p scripts
       # workerd with `remoteBindings: false`: no credential, no reach into the account.
       - run: npm test
       - run: node --check public/app.js

@@ -1,29 +1,20 @@
+import { parseMarkdown, splitInline } from "./markdown.js";
+import { failureMessage, resultTitle } from "./publish-result.js";
+import { MAX_REPOS, restoreState, withRepo } from "./state.js";
+
 const STORAGE_KEY = "issue-drafter:state";
-const ISSUE_TYPES = ["bug", "feature", "task"];
-const TYPES = ["auto", ...ISSUE_TYPES];
-const MAX_REPOS = 10;
 const el = (id) => document.getElementById(id);
-const state = { repos: [], type: "auto", note: "", fields: null, title: "", body: "" };
+const state = restoreState(null);
 let statusTimer;
 
-const isDraft = (value) => typeof value === "object" && value !== null && ISSUE_TYPES.includes(value.type);
-
-// What is stored was written by an older version of this page as often as by
-// the last session, so each key is restored only when its shape still fits.
-// Anything else falls back to the empty default rather than reaching the DOM.
 function loadState() {
-  let saved = {};
+  let saved = null;
   try {
-    saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") ?? {};
+    saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
   } catch {
     // Storage can be unavailable or hold garbage; the page works without it.
   }
-  for (const key of ["note", "title", "body"]) {
-    if (typeof saved[key] === "string") state[key] = saved[key];
-  }
-  state.repos = Array.isArray(saved.repos) ? saved.repos.filter((name) => typeof name === "string") : [];
-  state.type = TYPES.includes(saved.type) ? saved.type : "auto";
-  state.fields = isDraft(saved.fields) ? saved.fields : null;
+  Object.assign(state, restoreState(saved));
 }
 
 function saveState() {
@@ -82,68 +73,42 @@ async function api(path, body) {
 }
 
 // Backticks become <code>; everything else stays text, so nothing is parsed as HTML.
-function appendInline(parent, text) {
-  text.split("`").forEach((part, i) => {
-    if (part === "") return;
-    if (i % 2 === 1) {
-      const code = document.createElement("code");
-      code.textContent = part;
-      parent.append(code);
-    } else {
-      parent.append(part);
-    }
+function inlineNodes(text) {
+  return splitInline(text).map((part) => {
+    if (!part.code) return part.text;
+    const code = document.createElement("code");
+    code.textContent = part.text;
+    return code;
   });
 }
 
-// Renders the subset of Markdown the templates produce: headings, paragraphs,
-// bullet, numbered and checkbox lists.
-function renderMarkdown(markdown) {
-  const nodes = [];
-  let list = null;
-  let paragraph = null;
-
-  for (const line of markdown.split("\n")) {
-    const text = line.trim();
-    const heading = text.match(/^#{1,6}\s+(.+)$/);
-    const item = text.match(/^(?:[-*]|(\d+)\.)\s+(?:\[([ xX])\]\s+)?(.+)$/);
-
-    if (text === "") {
-      list = paragraph = null;
-    } else if (heading) {
-      list = paragraph = null;
-      const h3 = document.createElement("h3");
-      appendInline(h3, heading[1]);
-      nodes.push(h3);
-    } else if (item) {
-      paragraph = null;
-      const tag = item[1] ? "OL" : "UL";
-      if (list?.tagName !== tag) {
-        list = document.createElement(tag);
-        nodes.push(list);
-      }
-      const li = document.createElement("li");
-      if (item[2] !== undefined) {
-        const box = document.createElement("input");
-        box.type = "checkbox";
-        box.disabled = true;
-        box.checked = item[2].toLowerCase() === "x";
-        li.className = "task-item";
-        li.append(box);
-      }
-      appendInline(li, item[3]);
-      list.append(li);
-    } else {
-      list = null;
-      if (paragraph) {
-        paragraph.append(" ");
-      } else {
-        paragraph = document.createElement("p");
-        nodes.push(paragraph);
-      }
-      appendInline(paragraph, text);
-    }
+function listItemNode(item) {
+  const li = document.createElement("li");
+  if (item.checked !== null) {
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.disabled = true;
+    box.checked = item.checked;
+    li.className = "task-item";
+    li.append(box);
   }
+  li.append(...inlineNodes(item.text));
+  return li;
+}
 
+function blockNode(block) {
+  if (block.kind === "list") {
+    const list = document.createElement(block.ordered ? "ol" : "ul");
+    list.append(...block.items.map(listItemNode));
+    return list;
+  }
+  const node = document.createElement(block.kind === "heading" ? "h3" : "p");
+  node.append(...inlineNodes(block.text));
+  return node;
+}
+
+function renderMarkdown(markdown) {
+  const nodes = parseMarkdown(markdown).map(blockNode);
   if (nodes.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty";
@@ -219,7 +184,7 @@ function syncRepos() {
 }
 
 function toggleRepo(box) {
-  state.repos = box.checked ? [...state.repos, box.value] : state.repos.filter((name) => name !== box.value);
+  state.repos = withRepo(state.repos, box.value, box.checked);
   saveState();
   syncRepos();
 }
@@ -287,9 +252,7 @@ function clearDraft() {
 }
 
 function showResult(created) {
-  el("result-title").textContent = created.length === 1
-    ? `Issue #${created[0].number} created in ${created[0].repo}`
-    : `${created.length} issues created`;
+  el("result-title").textContent = resultTitle(created);
   el("result-links").replaceChildren(...created.map((issue) => {
     const link = document.createElement("a");
     link.href = issue.url;
@@ -319,7 +282,7 @@ async function publish() {
     state.repos = failed.map((failure) => failure.repo);
     saveState();
     syncRepos();
-    throw new Error(`Not published to ${failed.map(({ repo, error }) => `${repo} (${error.replace(/\.$/, "")})`).join(", ")}. They stay selected to retry.`);
+    throw new Error(failureMessage(failed));
   }
   state.note = "";
   el("note").value = "";

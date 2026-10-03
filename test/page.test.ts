@@ -14,9 +14,17 @@ describe("the page", () => {
     for (const id of ["repos", "repo-filter", "repo-count", "repo-message", "type", "note", "generate", "preview", "detected-type", "title", "body", "correction", "correct", "publish", "status", "result", "result-title", "result-links"]) {
       expect(html).toContain(`id="${id}"`);
     }
-    expect(html).toContain('<script src="/app.js" defer></script>');
+    expect(html).toContain('<script type="module" src="/app.js"></script>');
     expect(html).toContain('<link rel="icon" href="/logo.svg" type="image/svg+xml">');
     expect(html).not.toMatch(/<script>(?!<\/script>)|style="/);
+  });
+
+  it.each(["/app.js", "/markdown.js", "/state.js", "/publish-result.js"])("serves %s as JavaScript", async (path) => {
+    const ctx = createExecutionContext();
+    const response = await worker.fetch(new Request(`https://issues.cloudils.com${path}`), env, ctx);
+    await waitOnExecutionContext(ctx);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("javascript");
   });
 
   it("serves the logo as SVG", async () => {
