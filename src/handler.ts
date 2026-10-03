@@ -21,6 +21,9 @@ export interface Deps {
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_NOTE = 4000;
 const MAX_ISSUE_BODY = 60000;
+// Each repository spends up to three GitHub requests on top of the five a
+// listing can take, and the Workers Free plan allows 50 per invocation.
+const MAX_REPOS = 10;
 
 const API_HEADERS = {
   "content-type": "application/json; charset=utf-8",
@@ -56,6 +59,15 @@ function boundedText(value: unknown, name: string, max: number): string {
   if (text === "") throw badRequest(`${name} is required.`);
   if (text.length > max) throw badRequest(`${name} must be at most ${max} characters.`);
   return text;
+}
+
+function repoNames(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0 || !value.every((name): name is string => typeof name === "string")) {
+    throw badRequest("repos must be a non-empty list of repository names.");
+  }
+  const names = [...new Set(value)];
+  if (names.length > MAX_REPOS) throw badRequest(`repos must list at most ${MAX_REPOS} repositories.`);
+  return names;
 }
 
 function passesCsrf(request: Request, siteOrigin: string): boolean {
@@ -110,8 +122,8 @@ async function checkPerMinute(deps: Deps, kind: MinuteKind, identity: string): P
   }
 }
 
-async function consumeDaily(deps: Deps, kind: LimitKind): Promise<void> {
-  const daily = await deps.limits.consumeDaily(kind, deps.now());
+async function consumeDaily(deps: Deps, kind: LimitKind, amount = 1): Promise<void> {
+  const daily = await deps.limits.consumeDaily(kind, deps.now(), amount);
   if (!daily.allowed) {
     throw new HttpError(429, "The daily limit has been reached.", { resetAt: daily.resetAt });
   }
@@ -150,38 +162,55 @@ async function publishRoute(request: Request, deps: Deps, identity: string): Pro
   if (!isIssueType(type)) throw badRequest('type must be "bug", "feature" or "task".');
   const title = boundedText(body["title"], "title", MAX_TITLE);
   const issueBody = boundedText(body["body"], "body", MAX_ISSUE_BODY);
+  const repos = repoNames(body["repos"]);
 
   // Before the repository check, which lists repositories on GitHub. The daily
   // cap waits until the request is known to be valid.
   await checkPerMinute(deps, "publish", identity);
-  const repo = body["repo"];
-  const repos = await deps.github.listRepos();
-  if (typeof repo !== "string" || !repos.some((candidate) => candidate.name === repo)) {
-    throw badRequest("repo must be one of your repositories.");
+  const owned = new Set((await deps.github.listRepos()).map((repo) => repo.name));
+  if (!repos.every((repo) => owned.has(repo))) throw badRequest("repos must all be your repositories.");
+
+  await consumeDaily(deps, "publish", repos.length);
+  const label = LABELS[type];
+  const issue = { title, body: issueBody, labels: [label] };
+  const created: (CreatedIssue & { repo: string })[] = [];
+  const failed: { repo: string; error: unknown }[] = [];
+  // One at a time: GitHub asks for content-creating requests to be serial.
+  for (const repo of repos) {
+    try {
+      await deps.github.ensureLabel(repo, label);
+      created.push({ repo, ...(await deps.github.createIssue(repo, issue)) });
+    } catch (error) {
+      failed.push({ repo, error });
+    }
   }
 
-  await consumeDaily(deps, "publish");
-  const label = LABELS[type];
-  await deps.github.ensureLabel(repo, label);
-  const created = await deps.github.createIssue(repo, { title, body: issueBody, labels: [label] });
-  return json(201, created);
+  // With nothing created the request answers as a single-repository publish always has.
+  if (created.length === 0) throw failed[0]?.error;
+  return json(201, { created, failed: failed.map(({ repo, error }) => ({ repo, error: toHttpError(error).message })) });
 }
 
-function errorResponse(error: unknown): Response {
-  if (error instanceof HttpError) return json(error.status, { error: error.message, ...error.extra }, error.headers);
+// One mapping for every error, so a failure reported for one repository reads
+// the same as an error answered for the whole request.
+function toHttpError(error: unknown): HttpError {
+  if (error instanceof HttpError) return error;
   if (error instanceof DraftError) {
-    const status = { invalid_output: 502, quota_exhausted: 429, unavailable: 503 }[error.kind];
-    return json(status, { error: error.message });
+    return new HttpError({ invalid_output: 502, quota_exhausted: 429, unavailable: 503 }[error.kind], error.message);
   }
   if (error instanceof GitHubError) {
-    if (error.status === 401 || error.status === 403) return json(502, { error: "GitHub rejected the token or it lacks permission." });
-    if (error.status === 404 || error.status === 410) return json(400, { error: "The repository is unavailable or has issues disabled." });
-    if (error.status === 422) return json(400, { error: error.message });
-    return json(502, { error: `GitHub failed: ${error.message}` });
+    if (error.status === 401 || error.status === 403) return new HttpError(502, "GitHub rejected the token or it lacks permission.");
+    if (error.status === 404 || error.status === 410) return new HttpError(400, "The repository is unavailable or has issues disabled.");
+    if (error.status === 422) return new HttpError(400, error.message);
+    return new HttpError(502, `GitHub failed: ${error.message}`);
   }
   // Only the name: messages can carry request content, which is never logged.
   console.error("Unexpected error", error instanceof Error ? error.name : typeof error);
-  return json(500, { error: "Unexpected error." });
+  return new HttpError(500, "Unexpected error.");
+}
+
+function errorResponse(error: unknown): Response {
+  const { status, message, extra, headers } = toHttpError(error);
+  return json(status, { error: message, ...extra }, headers);
 }
 
 type Route = { method: string; csrf: boolean; run: (request: Request, deps: Deps, identity: string) => Promise<Response> };
