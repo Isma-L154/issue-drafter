@@ -23,10 +23,18 @@
     <section class="card" aria-labelledby="compose-heading">
       <h2 id="compose-heading" class="card-title"><span class="step" aria-hidden="true">1</span>Write a note</h2>
 
-      <div class="field">
-        <label for="repo">Repository</label>
-        <div class="select">
-          <select id="repo" required><option value="">Loading repositories...</option></select>
+      <div class="field" role="group" aria-labelledby="repos-label">
+        <div class="label-row">
+          <span id="repos-label" class="label">Repositories</span>
+          <span id="repo-count" class="counter">0 / 10 selected</span>
+        </div>
+        <div class="repo-picker">
+          <div class="repo-filter">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input id="repo-filter" type="search" placeholder="Filter repositories" aria-label="Filter repositories" autocomplete="off" spellcheck="false">
+          </div>
+          <div id="repos" class="repo-list"></div>
+          <p id="repo-message" class="repo-message">Loading repositories...</p>
         </div>
       </div>
 
@@ -57,14 +65,13 @@
       </div>
     </section>
 
-    <a id="result" class="result" hidden target="_blank" rel="noopener noreferrer">
+    <div id="result" class="result" hidden>
       <svg class="icon result-check" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.8"/></svg>
-      <span class="result-text">
+      <div class="result-text">
         <strong id="result-title"></strong>
-        <span>Open it on GitHub</span>
-      </span>
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>
-    </a>
+        <ul id="result-links" class="result-links"></ul>
+      </div>
+    </div>
 
     <section id="preview" class="card" aria-labelledby="review-heading" hidden>
       <div class="card-head">

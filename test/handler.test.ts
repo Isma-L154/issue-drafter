@@ -13,7 +13,7 @@ const fields: IssueFields = {
 };
 
 function makeDeps(overrides: Partial<Deps> = {}) {
-  const calls = { minute: [] as MinuteKind[], daily: [] as LimitKind[], drafts: 0, listings: 0, labels: [] as string[], issues: [] as unknown[] };
+  const calls = { minute: [] as MinuteKind[], daily: [] as LimitKind[], spent: [] as (number | undefined)[], drafts: 0, listings: 0, labels: [] as string[], issues: [] as unknown[] };
   const deps: Deps = {
     verify: async () => "owner@example.com",
     draft: async () => { calls.drafts++; return fields; },
@@ -24,7 +24,7 @@ function makeDeps(overrides: Partial<Deps> = {}) {
     },
     limits: {
       perMinute: async (kind) => { calls.minute.push(kind); return true; },
-      consumeDaily: async (kind): Promise<DailyResult> => { calls.daily.push(kind); return { allowed: true, resetAt: "2026-09-13T00:00:00.000Z" }; },
+      consumeDaily: async (kind, _now, amount): Promise<DailyResult> => { calls.daily.push(kind); calls.spent.push(amount); return { allowed: true, resetAt: "2026-09-13T00:00:00.000Z" }; },
     },
     now: () => new Date("2026-09-12T12:00:00Z"),
     siteOrigin: ORIGIN,
@@ -188,13 +188,13 @@ describe("POST /api/draft", () => {
 });
 
 describe("POST /api/publish", () => {
-  const valid = { repo: "LoopifyBot", type: "task", title: " Remove dead code ", body: "## Goal\n\nLess code.\n" };
+  const valid = { repos: ["LoopifyBot"], type: "task", title: " Remove dead code ", body: "## Goal\n\nLess code.\n" };
 
   it("ensures the label from the type and creates the issue", async () => {
     const { deps, calls } = makeDeps();
     const response = await handle(post("/api/publish", { ...valid, labels: ["pwned"] }), deps);
     expect(response.status).toBe(201);
-    expect(await response.json()).toEqual({ number: 7, url: "https://github.com/Isma-L154/LoopifyBot/issues/7" });
+    expect(await response.json()).toEqual({ created: [{ repo: "LoopifyBot", number: 7, url: "https://github.com/Isma-L154/LoopifyBot/issues/7" }], failed: [] });
     expect(calls.labels).toEqual(["task"]);
     expect(calls.issues).toEqual([{ title: "Remove dead code", body: "## Goal\n\nLess code.", labels: ["task"] }]);
     expect(calls.minute).toEqual(["publish"]);
@@ -204,14 +204,14 @@ describe("POST /api/publish", () => {
   it("applies the per-minute limit before listing repositories", async () => {
     const { deps, calls } = makeDeps();
     deps.limits = { ...deps.limits, perMinute: async () => false };
-    const response = await handle(post("/api/publish", { ...valid, repo: "someone-elses" }), deps);
+    const response = await handle(post("/api/publish", { ...valid, repos: ["someone-elses"] }), deps);
     expect(response.status).toBe(429);
     expect(calls.listings).toBe(0);
     expect(calls.daily).toEqual([]);
   });
 
   it.each([
-    ["a repository outside the list", { ...valid, repo: "someone-elses" }],
+    ["a repository outside the list", { ...valid, repos: ["someone-elses"] }],
     ["auto as type", { ...valid, type: "auto" }],
     ["an empty title", { ...valid, title: " " }],
     ["a title over 120 characters", { ...valid, title: "x".repeat(121) }],
@@ -243,5 +243,91 @@ describe("POST /api/publish", () => {
     const response = await handle(post("/api/publish", valid), deps);
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "Unexpected error." });
+  });
+});
+
+describe("POST /api/publish to several repositories", () => {
+  const REPOS = ["LoopifyBot", "issue-drafter", "dotfiles"];
+  const issue = { type: "feature", title: "Add dark mode", body: "## Goal\n\nDark.\n" };
+
+  function multiRepoDeps(failing: Record<string, Error> = {}) {
+    const { deps, calls } = makeDeps();
+    const order: string[] = [];
+    deps.github = {
+      listRepos: async () => REPOS.map((name) => ({ name, private: false })),
+      ensureLabel: async (repo) => { order.push(`label ${repo}`); },
+      createIssue: async (repo) => {
+        order.push(`issue ${repo}`);
+        const error = failing[repo];
+        if (error) throw error;
+        const number = REPOS.indexOf(repo) + 1;
+        return { number, url: `https://github.com/Isma-L154/${repo}/issues/${number}` };
+      },
+    };
+    return { deps, calls, order };
+  }
+
+  it("creates the issue in each repository, one after another, spending one unit each", async () => {
+    const { deps, calls, order } = multiRepoDeps();
+    const response = await handle(post("/api/publish", { ...issue, repos: ["issue-drafter", "LoopifyBot"] }), deps);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({
+      created: [
+        { repo: "issue-drafter", number: 2, url: "https://github.com/Isma-L154/issue-drafter/issues/2" },
+        { repo: "LoopifyBot", number: 1, url: "https://github.com/Isma-L154/LoopifyBot/issues/1" },
+      ],
+      failed: [],
+    });
+    expect(order).toEqual(["label issue-drafter", "issue issue-drafter", "label LoopifyBot", "issue LoopifyBot"]);
+    expect(calls.minute).toEqual(["publish"]);
+    expect(calls.spent).toEqual([2]);
+  });
+
+  it("publishes once to a repository listed twice", async () => {
+    const { deps, calls, order } = multiRepoDeps();
+    expect((await handle(post("/api/publish", { ...issue, repos: ["dotfiles", "dotfiles"] }), deps)).status).toBe(201);
+    expect(order).toEqual(["label dotfiles", "issue dotfiles"]);
+    expect(calls.spent).toEqual([1]);
+  });
+
+  it("keeps publishing after a repository fails and reports it", async () => {
+    const { deps } = multiRepoDeps({ "issue-drafter": new GitHubError(410, "Gone") });
+    const response = await handle(post("/api/publish", { ...issue, repos: REPOS }), deps);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({
+      created: [
+        { repo: "LoopifyBot", number: 1, url: "https://github.com/Isma-L154/LoopifyBot/issues/1" },
+        { repo: "dotfiles", number: 3, url: "https://github.com/Isma-L154/dotfiles/issues/3" },
+      ],
+      failed: [{ repo: "issue-drafter", error: "The repository is unavailable or has issues disabled." }],
+    });
+  });
+
+  it("answers the first failure when no issue was created", async () => {
+    const { deps } = multiRepoDeps({ LoopifyBot: new GitHubError(403, "Forbidden"), dotfiles: new GitHubError(410, "Gone") });
+    const response = await handle(post("/api/publish", { ...issue, repos: ["LoopifyBot", "dotfiles"] }), deps);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "GitHub rejected the token or it lacks permission." });
+  });
+
+  it.each([
+    ["no repos", {}],
+    ["an empty list", { repos: [] }],
+    ["a single name instead of a list", { repos: "LoopifyBot" }],
+    ["a name that is not a string", { repos: ["LoopifyBot", 7] }],
+    ["more than ten repositories", { repos: Array.from({ length: 11 }, (_, i) => `repo-${i}`) }],
+    ["one repository outside the list", { repos: ["LoopifyBot", "someone-elses"] }],
+  ])("rejects %s with 400 before publishing anything", async (_label, repos) => {
+    const { deps, calls, order } = multiRepoDeps();
+    expect((await handle(post("/api/publish", { ...issue, ...repos }), deps)).status).toBe(400);
+    expect(order).toEqual([]);
+    expect(calls.daily).toEqual([]);
+  });
+
+  it("publishes nothing when the daily cap cannot cover every repository", async () => {
+    const { deps, order } = multiRepoDeps();
+    deps.limits = { ...deps.limits, consumeDaily: async () => ({ allowed: false, resetAt: "2026-09-13T00:00:00.000Z" }) };
+    expect((await handle(post("/api/publish", { ...issue, repos: REPOS }), deps)).status).toBe(429);
+    expect(order).toEqual([]);
   });
 });

@@ -1,8 +1,9 @@
 const STORAGE_KEY = "issue-drafter:state";
 const ISSUE_TYPES = ["bug", "feature", "task"];
 const TYPES = ["auto", ...ISSUE_TYPES];
+const MAX_REPOS = 10;
 const el = (id) => document.getElementById(id);
-const state = { repo: "", type: "auto", note: "", fields: null, title: "", body: "" };
+const state = { repos: [], type: "auto", note: "", fields: null, title: "", body: "" };
 let statusTimer;
 
 const isDraft = (value) => typeof value === "object" && value !== null && ISSUE_TYPES.includes(value.type);
@@ -17,9 +18,10 @@ function loadState() {
   } catch {
     // Storage can be unavailable or hold garbage; the page works without it.
   }
-  for (const key of ["repo", "note", "title", "body"]) {
+  for (const key of ["note", "title", "body"]) {
     if (typeof saved[key] === "string") state[key] = saved[key];
   }
+  state.repos = Array.isArray(saved.repos) ? saved.repos.filter((name) => typeof name === "string") : [];
   state.type = TYPES.includes(saved.type) ? saved.type : "auto";
   state.fields = isDraft(saved.fields) ? saved.fields : null;
 }
@@ -182,18 +184,72 @@ async function run(action, buttonId = null) {
   }
 }
 
+function setRepoMessage(text) {
+  el("repo-message").textContent = text;
+  el("repo-message").hidden = text === "";
+}
+
+function repoOption(repo) {
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.value = repo.name;
+  const name = document.createElement("span");
+  name.className = "repo-name";
+  name.textContent = repo.name;
+  const row = document.createElement("label");
+  row.className = "repo-option";
+  row.append(box, name);
+  if (repo.private) {
+    const tag = document.createElement("span");
+    tag.className = "repo-tag";
+    tag.textContent = "private";
+    row.append(tag);
+  }
+  return row;
+}
+
+// Reflects `state.repos` on the boxes; at the maximum the rest are disabled.
+function syncRepos() {
+  const full = state.repos.length >= MAX_REPOS;
+  for (const box of el("repos").querySelectorAll("input")) {
+    box.checked = state.repos.includes(box.value);
+    box.disabled = full && !box.checked;
+  }
+  el("repo-count").textContent = `${state.repos.length} / ${MAX_REPOS} selected`;
+}
+
+function toggleRepo(box) {
+  state.repos = box.checked ? [...state.repos, box.value] : state.repos.filter((name) => name !== box.value);
+  saveState();
+  syncRepos();
+}
+
+function filterRepos() {
+  const query = el("repo-filter").value.trim().toLowerCase();
+  let shown = 0;
+  for (const box of el("repos").querySelectorAll("input")) {
+    const match = box.value.toLowerCase().includes(query);
+    box.parentElement.hidden = !match;
+    if (match) shown++;
+  }
+  if (el("repos").children.length > 0) setRepoMessage(shown === 0 ? "No repositories match." : "");
+}
+
 async function loadRepos() {
-  const select = el("repo");
   let repos;
   try {
     ({ repos } = await api("/api/repos"));
   } catch (error) {
-    select.replaceChildren(new Option("Could not load repositories", ""));
+    setRepoMessage("Could not load repositories.");
     throw error;
   }
-  select.replaceChildren(new Option(repos.length ? "Choose a repository" : "No repositories with issues enabled", ""));
-  for (const repo of repos) select.add(new Option(repo.private ? `${repo.name} (private)` : repo.name, repo.name));
-  if (repos.some((repo) => repo.name === state.repo)) select.value = state.repo;
+  const names = new Set(repos.map((repo) => repo.name));
+  state.repos = state.repos.filter((name) => names.has(name));
+  saveState();
+  el("repos").replaceChildren(...repos.map(repoOption));
+  setRepoMessage(repos.length ? "" : "No repositories with issues enabled.");
+  syncRepos();
+  filterRepos();
 }
 
 function applyDraft(data) {
@@ -230,23 +286,46 @@ function clearDraft() {
   showPreview();
 }
 
+function showResult(created) {
+  el("result-title").textContent = created.length === 1
+    ? `Issue #${created[0].number} created in ${created[0].repo}`
+    : `${created.length} issues created`;
+  el("result-links").replaceChildren(...created.map((issue) => {
+    const link = document.createElement("a");
+    link.href = issue.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = `${issue.repo} #${issue.number}`;
+    const item = document.createElement("li");
+    item.append(link);
+    return item;
+  }));
+  el("result").hidden = false;
+}
+
 async function publish() {
-  if (!state.repo) {
-    el("repo").focus();
-    throw new Error("Choose a repository.");
+  if (state.repos.length === 0) {
+    el("repo-filter").focus();
+    throw new Error("Choose at least one repository.");
   }
   if (!state.title.trim() || !state.body.trim()) throw new Error("The title and body cannot be empty.");
   setStatus("Publishing...", "busy");
-  const created = await api("/api/publish", { repo: state.repo, type: state.fields.type, title: state.title, body: state.body });
+  const { created, failed } = await api("/api/publish", { repos: state.repos, type: state.fields.type, title: state.title, body: state.body });
+  showResult(created);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  // The draft stays, with only the failed repositories selected, so a retry is one click.
+  if (failed.length > 0) {
+    state.repos = failed.map((failure) => failure.repo);
+    saveState();
+    syncRepos();
+    throw new Error(`Not published to ${failed.map(({ repo, error }) => `${repo} (${error.replace(/\.$/, "")})`).join(", ")}. They stay selected to retry.`);
+  }
   state.note = "";
   el("note").value = "";
   updateCounter("note", "note-count");
   clearDraft();
-  el("result").href = created.url;
-  el("result-title").textContent = `Issue #${created.number} created in ${state.repo}`;
-  el("result").hidden = false;
   setStatus("Published.", "success");
-  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function bind(id, key, event = "input") {
@@ -267,6 +346,7 @@ function onCtrlEnter(id, handler) {
 
 document.addEventListener("DOMContentLoaded", () => {
   loadState();
+  syncRepos();
   el("note").value = state.note;
   updateCounter("note", "note-count");
   for (const radio of document.querySelectorAll('input[name="type"]')) {
@@ -278,12 +358,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   showPreview();
 
-  bind("repo", "repo", "change");
   bind("note", "note");
   bind("title", "title");
   bind("body", "body");
   el("note").addEventListener("input", () => updateCounter("note", "note-count"));
   el("title").addEventListener("input", () => updateCounter("title", "title-count"));
+  el("repos").addEventListener("change", (event) => toggleRepo(event.target));
+  el("repo-filter").addEventListener("input", filterRepos);
 
   el("tab-write").addEventListener("click", () => showTab(false));
   el("tab-render").addEventListener("click", () => showTab(true));

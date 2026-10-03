@@ -32,6 +32,17 @@ describe("consumeDaily", () => {
     expect(await limits.consumeDaily("draft", new Date("2026-09-13T00:00:01Z"))).toMatchObject({ allowed: true });
   });
 
+  it("spends several units at once only when they all fit", async () => {
+    const { store, data } = memoryStore();
+    const limits = createLimits({ draftLimiter: allow, publishLimiter: allow, reposLimiter: allow, store, draftCap: 1, publishCap: 5 });
+
+    expect(await limits.consumeDaily("publish", now, 3)).toMatchObject({ allowed: true });
+    expect(await limits.consumeDaily("publish", now, 3)).toMatchObject({ allowed: false });
+    expect(data.get("usage:publish:2026-09-12")).toBe("3");
+    expect(await limits.consumeDaily("publish", now, 2)).toMatchObject({ allowed: true });
+    expect(data.get("usage:publish:2026-09-12")).toBe("5");
+  });
+
   it("fails closed on an invalid cap", async () => {
     const { store } = memoryStore();
     const limits = createLimits({ draftLimiter: allow, publishLimiter: allow, reposLimiter: allow, store, draftCap: Number(""), publishCap: Number.NaN });
