@@ -17,7 +17,7 @@ export interface DailyResult {
 
 export interface Limits {
   perMinute(kind: MinuteKind, identity: string): Promise<boolean>;
-  consumeDaily(kind: LimitKind, now: Date): Promise<DailyResult>;
+  consumeDaily(kind: LimitKind, now: Date, amount?: number): Promise<DailyResult>;
 }
 
 interface LimitsOptions {
@@ -50,16 +50,16 @@ export function createLimits(options: LimitsOptions): Limits {
 
     // Not atomic: two simultaneous requests can both read the same count. With
     // one user and a per-minute limiter in front, the overshoot is a request or two.
-    async consumeDaily(kind, now) {
+    async consumeDaily(kind, now, amount = 1) {
       const cap = kind === "draft" ? options.draftCap : options.publishCap;
       const resetAt = nextUtcMidnight(now);
       if (!Number.isFinite(cap) || cap <= 0) return { allowed: false, resetAt };
 
       const key = `usage:${kind}:${now.toISOString().slice(0, 10)}`;
       const count = Number.parseInt((await options.store.get(key)) ?? "0", 10) || 0;
-      if (count >= cap) return { allowed: false, resetAt };
+      if (count + amount > cap) return { allowed: false, resetAt };
 
-      await options.store.put(key, String(count + 1), { expirationTtl: COUNTER_TTL_SECONDS });
+      await options.store.put(key, String(count + amount), { expirationTtl: COUNTER_TTL_SECONDS });
       return { allowed: true, resetAt };
     },
   };
