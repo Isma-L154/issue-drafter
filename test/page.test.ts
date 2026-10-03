@@ -11,7 +11,7 @@ describe("the page", () => {
     expect(response.headers.get("strict-transport-security")).toBe("max-age=31536000; includeSubDomains");
     expect(response.headers.get("content-security-policy")).toContain("object-src 'none'; base-uri 'none'");
     const html = await response.text();
-    for (const id of ["repo", "type", "note", "generate", "preview", "detected-type", "title", "body", "correction", "correct", "publish", "status", "result"]) {
+    for (const id of ["repos", "repo-filter", "repo-count", "repo-message", "type", "note", "generate", "preview", "detected-type", "title", "body", "correction", "correct", "publish", "status", "result", "result-title", "result-links"]) {
       expect(html).toContain(`id="${id}"`);
     }
     expect(html).toContain('<script src="/app.js" defer></script>');

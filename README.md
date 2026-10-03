@@ -16,7 +16,8 @@
 
 ## How it works
 
-1. Pick a repository and write a note, as informally as you like.
+1. Pick one or more repositories (up to ten) and write a note, as informally
+   as you like.
 2. Workers AI turns the note into issue fields. Code, not the model, renders
    them into the template, so every issue has the same structure.
 3. Review the preview, ask for a correction in plain words, and publish.
@@ -48,7 +49,7 @@ Everything runs on free tiers.
   every API call, so a misconfigured Access application fails closed.
 - The GitHub token can only read and write issues.
 - Per-minute rate limits on every GitHub or model call, checked before the call,
-  and daily caps on drafts (150) and publishes (50).
+  and daily caps on drafts (150) and published issues (50).
 - Same-origin JSON requests only, bodies capped at 64 KB while they stream.
 - Strict Content Security Policy and HSTS.
 - Missing configuration answers 500 everywhere, health included, so a broken
