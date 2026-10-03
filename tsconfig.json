@@ -5,6 +5,8 @@
     "module": "es2022",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": true,
     "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"],
     "strict": true,
     "noUncheckedIndexedAccess": true,

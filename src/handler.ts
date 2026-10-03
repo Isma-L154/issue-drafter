@@ -23,7 +23,7 @@ const MAX_NOTE = 4000;
 const MAX_ISSUE_BODY = 60000;
 // Each repository spends up to three GitHub requests on top of the five a
 // listing can take, and the Workers Free plan allows 50 per invocation.
-const MAX_REPOS = 10;
+export const MAX_REPOS = 10;
 
 const API_HEADERS = {
   "content-type": "application/json; charset=utf-8",
