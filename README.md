@@ -66,6 +66,10 @@ npm test
 npm run eval       # runs sample notes against the real model; needs CLOUDFLARE_API_TOKEN
 ```
 
+Under `npm run dev` the page loads but every API call except `/api/health`
+answers 403: it requires a Cloudflare Access JWT, which only Access adds. The
+API is exercised by the tests, with Access, GitHub and the model faked.
+
 ## Configuration
 
 | Name | Kind | Purpose |
