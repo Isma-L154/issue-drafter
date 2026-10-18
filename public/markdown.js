@@ -1,4 +1,4 @@
-/** @typedef {{ code: boolean, text: string }} Inline */
+/** @typedef {{ code: boolean, text: string, href?: string }} Inline `href` is set on a link. */
 /** @typedef {{ checked: boolean | null, text: string }} ListItem `checked` is null for a plain item. */
 /** @typedef {{ kind: "list", ordered: boolean, items: ListItem[] }} List */
 /** @typedef {{ kind: "paragraph", text: string }} Paragraph */
@@ -11,8 +11,28 @@
 export function splitInline(text) {
   return text
     .split("`")
-    .map((part, i) => ({ code: i % 2 === 1, text: part }))
+    .flatMap((part, i) => (i % 2 === 1 ? [{ code: true, text: part }] : splitLinks(part)))
     .filter((part) => part.text !== "");
+}
+
+// Only http and https, so a `javascript:` link stays text.
+const LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s<>"'`)\]]+)\)/g;
+
+/**
+ * @param {string} text
+ * @returns {Inline[]}
+ */
+function splitLinks(text) {
+  /** @type {Inline[]} */
+  const parts = [];
+  let last = 0;
+  for (const match of text.matchAll(LINK)) {
+    parts.push({ code: false, text: text.slice(last, match.index) });
+    parts.push({ code: false, text: match[1] ?? "", href: match[2] ?? "" });
+    last = match.index + match[0].length;
+  }
+  parts.push({ code: false, text: text.slice(last) });
+  return parts;
 }
 
 // The subset of Markdown the templates produce: headings, paragraphs, bullet,

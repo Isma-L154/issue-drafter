@@ -58,6 +58,14 @@ describe("draftIssue", () => {
     expect(calls[1]?.[1]?.content).toContain("- acceptance must contain at least one item.");
   });
 
+  it("retries when the draft invents a URL", async () => {
+    const invented = { ...valid, summary: "See the [docs](https://a.dev/docs)." };
+    const { model, calls } = fakeModel([asContent(JSON.stringify(invented)), asContent(JSON.stringify(valid))]);
+    await draftIssue(model, "m", { note: "n", type: "auto" });
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.[1]?.content).toContain("- https://a.dev/docs is not in the note.");
+  });
+
   it("gives up after the retry", async () => {
     const { model, calls } = fakeModel([asContent("nope"), asContent("still nope")]);
     await expect(draftIssue(model, "m", { note: "n", type: "auto" })).rejects.toMatchObject({ kind: "invalid_output" });

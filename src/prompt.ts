@@ -29,6 +29,7 @@ Rules:
 - impact, context and outOfScope: only facts the note states, otherwise empty. Never describe the application, its screens or the user experience in general terms.
 - acceptance: at least one checkable criterion that follows directly from what the note says should happen.
 - openQuestions: at least one question whenever the note leaves out something a maintainer needs, such as where it happens, how often, since when, or what exactly should happen instead. Short notes almost always need questions. Use [] only when nothing is unclear.
+- Links: write every URL the note contains as a Markdown link, [short descriptive text](url), in the field where it belongs. Take the text from what the note says around the URL, in English; if nothing describes it, use the site or page name the URL shows. Copy the URL exactly, character for character. Never add a URL the note does not contain, and never put a URL in the title.
 - Keep the author's meaning. Do not add solutions, opinions or scope the note does not contain.`;
 
 export function buildMessages(input: DraftInput, problems: string[] = []): ChatMessage[] {

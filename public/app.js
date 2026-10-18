@@ -72,9 +72,18 @@ async function api(path, body) {
   return data;
 }
 
-// Backticks become <code>; everything else stays text, so nothing is parsed as HTML.
+// Backticks become <code> and http(s) links <a>; everything else stays text, so
+// nothing is parsed as HTML.
 function inlineNodes(text) {
   return splitInline(text).map((part) => {
+    if (part.href) {
+      const link = document.createElement("a");
+      link.href = part.href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = part.text;
+      return link;
+    }
     if (!part.code) return part.text;
     const code = document.createElement("code");
     code.textContent = part.text;

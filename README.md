@@ -31,7 +31,9 @@ Three templates, chosen automatically or by hand:
 | Task | Goal, Context, Scope, Acceptance criteria, Out of scope, Open questions | `task` |
 
 Empty optional sections are left out. Anything the note does not say becomes
-an open question instead of an invented detail.
+an open question instead of an invented detail. URLs in the note become
+Markdown links with a short descriptive text; a draft that adds, alters or
+drops a URL is rejected and regenerated.
 
 ## Stack
 
