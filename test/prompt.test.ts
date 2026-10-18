@@ -35,7 +35,7 @@ describe("buildMessages", () => {
   });
 
   it("describes all three shapes and forbids invented facts", () => {
-    for (const shape of ['"type":"bug"', '"type":"feature"', '"type":"task"', "Never invent facts"]) {
+    for (const shape of ['"type":"bug"', '"type":"feature"', '"type":"task"', "Never invent facts", "[short descriptive text](url)"]) {
       expect(SYSTEM_PROMPT).toContain(shape);
     }
   });

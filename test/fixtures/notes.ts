@@ -34,6 +34,12 @@ export const NOTES: EvalNote[] = [
     statesSteps: true,
   },
   {
+    id: "links-bug",
+    note: "en histlow el botón de exportar no hace nada en https://histlow.app/profile/settings?tab=export&lang=es, debería bajar el csv como dice https://github.com/Isma-L154/histlow-tracker/blob/main/README.md",
+    expectedType: "bug",
+    statesSteps: false,
+  },
+  {
     id: "vague-bug",
     note: "el login no sirve",
     expectedType: "bug",

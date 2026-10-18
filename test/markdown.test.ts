@@ -14,6 +14,24 @@ describe("splitInline", () => {
   it("drops the empty parts around a code span", () => {
     expect(splitInline("`npm test`")).toEqual([{ code: true, text: "npm test" }]);
   });
+
+  it("reads an http or https Markdown link", () => {
+    expect(splitInline("on the [checkout page](https://a.dev/c?x=1&y=2) and [docs](http://a.dev/d).")).toEqual([
+      { code: false, text: "on the " },
+      { code: false, text: "checkout page", href: "https://a.dev/c?x=1&y=2" },
+      { code: false, text: " and " },
+      { code: false, text: "docs", href: "http://a.dev/d" },
+      { code: false, text: "." },
+    ]);
+  });
+
+  it("keeps a link with any other scheme as text", () => {
+    expect(splitInline("[click](javascript:alert(1))")).toEqual([{ code: false, text: "[click](javascript:alert(1))" }]);
+  });
+
+  it("does not read a link inside a code span", () => {
+    expect(splitInline("`[a](https://a.dev)`")).toEqual([{ code: true, text: "[a](https://a.dev)" }]);
+  });
 });
 
 describe("parseMarkdown", () => {

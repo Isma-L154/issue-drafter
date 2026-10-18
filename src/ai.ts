@@ -1,3 +1,4 @@
+import { linkProblems } from "./links.ts";
 import { buildMessages, type ChatMessage, type DraftInput } from "./prompt.ts";
 import { validateFields, type IssueFields } from "./schema.ts";
 
@@ -72,8 +73,8 @@ export async function draftIssue(ai: TextModel, model: string, input: DraftInput
   for (let attempt = 0; attempt < 2; attempt++) {
     const output = await callModel(ai, model, buildMessages(input, problems));
     const result = validateFields(extractJson(output), input.type);
-    if (result.ok) return result.fields;
-    problems = result.problems;
+    problems = result.ok ? linkProblems(result.fields, input) : result.problems;
+    if (result.ok && problems.length === 0) return result.fields;
   }
   throw new DraftError("invalid_output", "The model did not return a usable draft. Try again or rephrase the note.");
 }
