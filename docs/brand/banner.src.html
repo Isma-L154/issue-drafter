@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      README banner source, 1280x640. Build banner.html (this file with the fonts embedded)
+      and render it:
+        node docs/brand/build-banner.mjs
+        npx -y playwright@1.63.0 screenshot --viewport-size "1280,640" "file:///<absolute path>/docs/brand/banner.html" docs/brand/banner.png
+      Brand: the page's dark theme tokens (public/styles.css) and its logo mark.
+    -->
+    <style>
+      @font-face {
+        font-family: "Bricolage Grotesque";
+        src: url("__DISPLAY_FONT__") format("woff2");
+        font-weight: 200 800;
+      }
+      @font-face {
+        font-family: "JetBrains Mono";
+        src: url("__MONO_FONT__") format("woff2");
+        font-weight: 100 800;
+      }
+
+      :root {
+        --bg: #0b0e14;
+        --card: #121722;
+        --field: #0d111a;
+        --text: #e6eaf0;
+        --muted: #97a3b3;
+        --border: #232b38;
+        --border-strong: #334052;
+        --accent: #4c8dff;
+        --mark: #1f6feb;
+        --bug: #ff7b72;
+        --success: #56d364;
+      }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1280px; height: 640px; overflow: hidden; background: var(--bg); }
+
+      #banner {
+        position: relative;
+        width: 1280px;
+        height: 640px;
+        overflow: hidden;
+        background:
+          radial-gradient(46rem 30rem at 74% 50%, rgba(76, 141, 255, 0.18), transparent 70%),
+          radial-gradient(36rem 26rem at 100% 0%, rgba(76, 141, 255, 0.10), transparent 65%),
+          var(--bg);
+        color: var(--text);
+        font-family: "Bricolage Grotesque", system-ui, sans-serif;
+      }
+
+      .text {
+        position: absolute;
+        left: 56px;
+        top: 56px;
+        bottom: 56px;
+        width: 470px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 22px;
+      }
+      .brand { display: flex; align-items: center; gap: 16px; }
+      .brand svg { width: 56px; height: 56px; }
+      .name { font-size: 38px; font-weight: 800; letter-spacing: -1px; }
+      .name span { color: var(--accent); }
+      h1 { font-size: 52px; font-weight: 800; line-height: 1.06; letter-spacing: -1.8px; }
+      .description { font-size: 22px; line-height: 1.45; color: var(--muted); }
+      .chip {
+        align-self: flex-start;
+        padding: 8px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(76, 141, 255, 0.45);
+        background: var(--card);
+        color: var(--accent);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 17px;
+        font-weight: 600;
+      }
+
+      .scene { position: absolute; left: 560px; top: 0; right: 0; bottom: 0; }
+      .card {
+        position: absolute;
+        border-radius: 18px;
+        border: 1px solid var(--border-strong);
+        background: var(--card);
+        box-shadow: 0 32px 64px rgba(0, 0, 0, 0.45);
+      }
+      .note { left: 40px; top: 70px; width: 330px; padding: 22px 24px; transform: rotate(-3deg); }
+      .label {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 12px;
+      }
+      .note p {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 17px;
+        line-height: 1.6;
+        color: var(--text);
+        background: var(--field);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 16px;
+      }
+      .arrow { position: absolute; left: 290px; top: 228px; width: 120px; height: 70px; }
+      .issue { left: 200px; top: 300px; width: 470px; padding: 24px 28px; }
+      .issue-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+      .issue-head svg { width: 26px; height: 26px; flex: none; }
+      .issue h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.4px; }
+      .tag {
+        display: inline-block;
+        margin-bottom: 16px;
+        padding: 3px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 123, 114, 0.5);
+        background: rgba(255, 123, 114, 0.12);
+        color: var(--bug);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .section {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text);
+        margin: 10px 0 6px;
+      }
+      .line { height: 9px; border-radius: 5px; background: var(--border-strong); margin-bottom: 7px; }
+      .check { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+      .check i { width: 14px; height: 14px; border-radius: 4px; border: 2px solid var(--muted); flex: none; }
+      .check .line { flex: 1; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="banner">
+      <div class="text">
+        <div class="brand">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <rect width="64" height="64" rx="14" fill="#1f6feb" />
+            <circle cx="29" cy="29" r="15" fill="none" stroke="#ffffff" stroke-width="5" />
+            <circle cx="29" cy="29" r="4.5" fill="#ffffff" />
+            <path d="M41 51 L53 39" stroke="#ffffff" stroke-width="5" stroke-linecap="round" />
+          </svg>
+          <div class="name">Issue <span>Drafter</span></div>
+        </div>
+        <h1>Write it your way. Publish it in English.</h1>
+        <p class="description">An informal note in Spanish becomes a GitHub issue built from one fixed template.</p>
+        <p class="chip">bug &middot; feature &middot; task</p>
+      </div>
+
+      <div class="scene" aria-hidden="true">
+        <div class="card note">
+          <div class="label">Your note</div>
+          <p>el bot&oacute;n de exportar no hace nada en safari, revisar</p>
+        </div>
+
+        <svg class="arrow" viewBox="0 0 120 70" fill="none" stroke="#4c8dff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 6 C 18 40, 56 54, 100 54" />
+          <path d="M88 42 L102 54 L88 66" />
+        </svg>
+
+        <div class="card issue">
+          <div class="issue-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#56d364" stroke-width="2.2">
+              <circle cx="12" cy="12" r="9" />
+              <circle cx="12" cy="12" r="2.5" fill="#56d364" stroke="none" />
+            </svg>
+            <h2>Export does nothing in Safari</h2>
+          </div>
+          <span class="tag">bug</span>
+          <div class="section">## Steps to reproduce</div>
+          <div class="line" style="width: 86%"></div>
+          <div class="line" style="width: 64%"></div>
+          <div class="section">## Acceptance criteria</div>
+          <div class="check"><i></i><div class="line" style="max-width: 72%"></div></div>
+          <div class="check"><i></i><div class="line" style="max-width: 54%"></div></div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
