@@ -32,6 +32,9 @@ jobs:
       # workerd with `remoteBindings: false`: no credential, no reach into the account.
       - run: npm test
       - run: node --check public/app.js
+      # The bundle deploy.yml uploads, built without contacting Cloudflare: a
+      # wrangler or esbuild update that breaks it fails here, before the merge.
+      - run: npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/bundle"
 
   secrets:
     name: No credentials committed
