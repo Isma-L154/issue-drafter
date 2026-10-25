@@ -72,8 +72,16 @@ describe("perMinute", () => {
       draftLimiter: env.DRAFT_LIMITER, publishLimiter: env.PUBLISH_LIMITER, reposLimiter: env.REPOS_LIMITER,
       store: env.USAGE, draftCap: 150, publishCap: 50,
     });
-    const results: boolean[] = [];
-    for (let i = 0; i <= limit; i++) results.push(await limits.perMinute(kind, `burst-${kind}@example.com`));
+    // Miniflare counts in fixed windows aligned to the clock, so a burst that
+    // crosses into the next one starts counting again: repeat it with a new key.
+    const window = () => Math.floor(Date.now() / 60_000);
+    let results: boolean[];
+    for (let attempt = 0; ; attempt++) {
+      const start = window();
+      results = [];
+      for (let i = 0; i <= limit; i++) results.push(await limits.perMinute(kind, `burst-${kind}-${attempt}@example.com`));
+      if (window() === start) break;
+    }
     expect(results.slice(0, limit).every(Boolean)).toBe(true);
     expect(results[limit]).toBe(false);
   });
