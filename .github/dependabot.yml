@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # A compromised or broken release is usually pulled within days.
+    # Security updates ignore the cooldown.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 3
     ignore:
       # @cloudflare/vitest-pool-workers declares a peer range of vitest ^4.1.0;
@@ -21,6 +25,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
