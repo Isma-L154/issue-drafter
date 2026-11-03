@@ -10,10 +10,6 @@ updates:
       default-days: 7
     open-pull-requests-limit: 3
     ignore:
-      # @cloudflare/vitest-pool-workers declares a peer range of vitest ^4.1.0;
-      # a major bump fails CI until the pool supports it.
-      - dependency-name: "vitest"
-        update-types: ["version-update:semver-major"]
       # Follows the major of the Node that ci.yml and deploy.yml run.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
