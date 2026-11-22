@@ -47,9 +47,6 @@ export function buildMessages(input: DraftInput, problems: string[] = []): ChatM
     parts.push(`Your previous answer was rejected:\n${problems.map((p) => `- ${p}`).join("\n")}\nReturn a corrected JSON object.`);
   }
 
-  // Qwen3 reasoning stays on. With `/no_think` a draft cost 4 Neurons instead of
-  // 18, but the evaluation showed empty open questions on every note, including
-  // a four-word one, and invented reproduction steps.
   return [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: parts.join("\n\n") },

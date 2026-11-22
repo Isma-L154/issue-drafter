@@ -43,7 +43,7 @@
 flowchart LR
     B["🧑‍💻 Browser"] --> A["🔐 Cloudflare Access"]
     A --> W["⚙️ Worker<br/>static page + /api"]
-    W --> AI["🤖 Workers AI<br/>qwen3-30b-a3b"]
+    W --> AI["🤖 Workers AI<br/>Gemma 4 26B A4B"]
     W --> G["🐙 GitHub REST API"]
     W --> K[("🗄️ KV<br/>daily usage")]
     W --> R["⏱️ Rate Limiting"]
@@ -59,7 +59,7 @@ structure out of the model's hands.
 Daily caps live in KV as one counter per day; the per-minute limits use the
 Rate Limiting bindings, keyed by the Access identity.
 
-**Stack:** Cloudflare Workers (static assets, KV, Rate Limiting) · Workers AI (`@cf/qwen/qwen3-30b-a3b-fp8`) · Cloudflare Access · GitHub REST API · TypeScript · Vitest in `workerd`
+**Stack:** Cloudflare Workers (static assets, KV, Rate Limiting) · Workers AI (`@cf/google/gemma-4-26b-a4b-it`) · Cloudflare Access · GitHub REST API · TypeScript · Vitest in `workerd`
 
 Everything runs on free tiers.
 
