@@ -31,7 +31,7 @@
 
   // Secret, set with `wrangler secret put GITHUB_TOKEN`, never committed.
   "vars": {
-    "MODEL": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "MODEL": "@cf/google/gemma-4-26b-a4b-it",
     "GITHUB_OWNER": "Isma-L154",
     "SITE_ORIGIN": "https://issues.cloudils.com",
     // The Access application "Issue Drafter". Neither value is secret: both

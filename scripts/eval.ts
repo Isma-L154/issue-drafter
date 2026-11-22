@@ -6,7 +6,7 @@ import { renderIssue } from "../src/render.ts";
 import { NOTES } from "../test/fixtures/notes.ts";
 
 const ACCOUNT_ID = process.env["CLOUDFLARE_ACCOUNT_ID"] ?? "51d7355a63c1a3eba08d8ef63a889b3b";
-const MODEL = process.env["MODEL"] ?? "@cf/qwen/qwen3-30b-a3b-fp8";
+const MODEL = process.env["MODEL"] ?? "@cf/google/gemma-4-26b-a4b-it";
 const token = process.env["CLOUDFLARE_API_TOKEN"];
 if (!token) {
   console.error("Set CLOUDFLARE_API_TOKEN first.");
